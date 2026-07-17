@@ -1,0 +1,16 @@
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+sqlalchemy==2.0.41
+aiosqlite==0.21.0
+asyncpg==0.30.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+python-multipart==0.0.20
+redis==6.2.0
+aio-pika==9.5.5
+minio==7.2.15
+celery==5.5.3
+httpx==0.28.1
+pytest==8.4.1
+pytest-asyncio==1.0.0
+locust==2.37.10

@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.venv/
 /.pnpm-store/
 /.pnp
 .pnp.*
@@ -37,6 +38,7 @@ yarn-error.log*
 __pycache__/
 *.py[cod]
 backend/data/
+/data/
 
 # vercel
 .vercel
