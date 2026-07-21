@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 type Runtime = { DB: D1Database; MEDIA: R2Bucket };
-type User = { email: string; display_name: string; role: string; area: string; skills?: string; current_load: number; max_load: number; rating: number };
+type User = { email: string; display_name: string; role: string; area: string; skills?: string; current_load: number; max_load: number; rating: number; actual_role?: string; authenticated_email?: string };
 
 const runtime = () => env as unknown as Runtime;
 const now = () => new Date().toISOString();
@@ -45,7 +45,16 @@ async function currentUser(request: NextRequest): Promise<User | null> {
     user = await db.prepare("SELECT * FROM site_users WHERE email = ?").bind(who.email).first<User>();
   }
   await seed(db, who.email);
-  return user || null;
+  if (!user) return null;
+  const requestedRole = request.headers.get("x-workorder-role");
+  if (user.role === "admin" && requestedRole === "worker") {
+    const worker = await db.prepare("SELECT * FROM site_users WHERE role='worker' ORDER BY rating DESC LIMIT 1").first<User>();
+    if (worker) return { ...worker, actual_role: "admin", authenticated_email: user.email };
+  }
+  if (user.role === "admin" && requestedRole === "resident") {
+    return { ...user, role: "resident", actual_role: "admin", authenticated_email: user.email };
+  }
+  return { ...user, actual_role: user.role, authenticated_email: user.email };
 }
 
 async function seed(db: D1Database, ownerEmail: string) {
@@ -94,14 +103,16 @@ async function stateFor(user: User) {
     const events = await db.prepare("SELECT action,detail,created_at FROM site_order_events WHERE work_order_id = ? ORDER BY id DESC").bind(order.id).all();
     orders.push({ ...order, attachments: attachments.results, events: events.results });
   }
-  const workers = await db.prepare("SELECT email,display_name,area,skills,current_load,max_load,rating FROM site_users WHERE role='worker' ORDER BY rating DESC").all();
+  const workers = user.role === "resident"
+    ? { results: [] }
+    : await db.prepare("SELECT email,display_name,area,skills,current_load,max_load,rating FROM site_users WHERE role='worker' ORDER BY rating DESC").all();
   const metrics = {
     total: orders.length,
     pending: orders.filter((item) => ["待派单", "已派单"].includes(String(item.status))).length,
     processing: orders.filter((item) => ["已接单", "处理中", "待回访"].includes(String(item.status))).length,
     completed: orders.filter((item) => item.status === "已完成").length,
   };
-  return { user, orders, workers: workers.results, metrics };
+  return { user, canSwitchRole: user.actual_role === "admin", orders, workers: workers.results, metrics };
 }
 
 export async function GET(request: NextRequest) {
@@ -141,6 +152,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json() as Record<string, unknown>;
   const action = String(body.action || "");
   if (action === "create") {
+    if (user.role === "worker") return NextResponse.json({ error: "工作人员不能代替居民创建工单" }, { status: 403 });
     const title = String(body.title || "").trim();
     const description = String(body.description || title).trim();
     if (title.length < 2) return NextResponse.json({ error: "请完整描述问题" }, { status: 422 });
