@@ -1,3 +1,5 @@
+import json
+
 from src.ai_services.image_detect import ImageDetectionService
 from src.ai_services.stt_service import SpeechToTextService
 
@@ -15,8 +17,12 @@ class MultimodalFusionService:
             object_key = str(getattr(attachment, "object_key", ""))
             media_types.append(media_type)
             if media_type == "audio":
-                evidence.append(await self.stt.transcribe(object_key))
+                transcript = await self.stt.transcribe(object_key)
+                setattr(attachment, "transcript", transcript)
+                evidence.append(transcript)
             elif media_type in {"image", "video"}:
-                evidence.extend(await self.detector.detect(object_key))
+                features = await self.detector.detect(object_key)
+                setattr(attachment, "detected_features", json.dumps(features, ensure_ascii=False))
+                evidence.extend(features)
         normalized = "；".join(part.strip() for part in evidence if part and part.strip())
         return {"normalized_text": normalized, "media_types": sorted(set(media_types)), "evidence_count": len(evidence)}

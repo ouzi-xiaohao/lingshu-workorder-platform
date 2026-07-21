@@ -30,9 +30,14 @@ class Settings(BaseSettings):
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "workorder-media"
     minio_secure: bool = False
+    media_storage_mode: str = "auto"
+    local_media_dir: str = "data/media"
+    max_upload_bytes: int = 50 * 1024 * 1024
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     rate_limit_per_minute: int = 120
     ai_mode: str = "fallback"
+    whisper_model: str = "base"
+    yolo_model: str = "yolov8n.pt"
     llm_api_url: str | None = None
     llm_api_key: str | None = None
 

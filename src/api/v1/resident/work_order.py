@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.dependencies import current_user, db_session
 from src.dao.work_order_dao import WorkOrderDAO
 from src.models.user import User
-from src.schemas.request.work_order import RatingRequest, WorkOrderCreate
+from src.schemas.request.work_order import RatingRequest, StatusUpdateRequest, WorkOrderCreate
 from src.schemas.response.work_order import WorkOrderDetail, WorkOrderSummary
 from src.service.work_order_service import WorkOrderService
 
@@ -39,6 +39,22 @@ async def rate_work_order(work_order_id: int, payload: RatingRequest, user: User
     if order.reporter_id != user.id:
         from fastapi import HTTPException
         raise HTTPException(403, "只能评价本人提交的工单")
+    if order.status != "已完成":
+        from fastapi import HTTPException
+        raise HTTPException(409, "只能评价已完成的工单")
     order.rating = payload.score
     await session.commit()
     return {"code": "OK", "message": "评价已提交", "data": {"score": payload.score, "comment": payload.comment}}
+
+
+@router.post("/{work_order_id}/cancel")
+async def cancel_work_order(work_order_id: int, payload: StatusUpdateRequest, request: Request, user: User = Depends(current_user), session: AsyncSession = Depends(db_session)):
+    order = await WorkOrderService(session).detail(work_order_id)
+    if order.reporter_id != user.id:
+        from fastapi import HTTPException
+        raise HTTPException(403, "只能取消本人提交的工单")
+    if payload.status != "已取消":
+        from fastapi import HTTPException
+        raise HTTPException(422, "取消操作的目标状态必须为已取消")
+    updated = await WorkOrderService(session).transition(work_order_id, "已取消", user.id, "resident", payload.detail, request.state.trace_id)
+    return {"code": "OK", "message": "工单已取消", "data": WorkOrderDetail.model_validate(updated)}

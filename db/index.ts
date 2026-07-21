@@ -9,5 +9,5 @@ export function getDb() {
     );
   }
 
-  return drizzle(env.DB, { schema });
+  return drizzle(env.DB as D1Database, { schema });
 }

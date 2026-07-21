@@ -1,13 +1,14 @@
 from fastapi import APIRouter
 
 from src.api.v1.admin import order_manage, stats, system, user_manage
-from src.api.v1.resident import auth, user, work_order
+from src.api.v1.resident import auth, media, user, work_order
 from src.api.v1.worker import order_handle, personal
 
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/resident/auth", tags=["居民-认证"])
 api_router.include_router(work_order.router, prefix="/resident/work-orders", tags=["居民-工单"])
+api_router.include_router(media.router, prefix="/resident/media", tags=["居民-多媒体附件"])
 api_router.include_router(user.router, prefix="/resident/user", tags=["居民-个人中心"])
 api_router.include_router(order_handle.router, prefix="/worker/work-orders", tags=["工作人员-工单处理"])
 api_router.include_router(personal.router, prefix="/worker/personal", tags=["工作人员-个人绩效"])

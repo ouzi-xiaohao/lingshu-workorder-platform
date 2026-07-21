@@ -26,6 +26,9 @@ class WorkOrderService:
             existing = await self.dao.get_by_request_id(payload.request_id)
             if existing:
                 return existing
+        for item in payload.attachments:
+            if not item.object_key.startswith(f"users/{reporter_id}/"):
+                raise BusinessError("附件不属于当前用户", ErrorCode.FORBIDDEN, 403)
         attachments = [Attachment(**item.model_dump()) for item in payload.attachments]
         fused = await self.fusion.fuse(payload.title, payload.description, attachments)
         state, results = await AgentScheduler([IntentAgent()]).execute(trace_id, {
