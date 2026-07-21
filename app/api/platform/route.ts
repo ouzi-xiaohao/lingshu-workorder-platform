@@ -26,6 +26,7 @@ async function ensureSchema(db: D1Database) {
     db.prepare("CREATE TABLE IF NOT EXISTS site_work_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, order_no TEXT NOT NULL UNIQUE, title TEXT NOT NULL, description TEXT NOT NULL, category TEXT NOT NULL, priority TEXT NOT NULL, status TEXT NOT NULL, area TEXT NOT NULL, reporter_email TEXT NOT NULL, reporter_name TEXT NOT NULL, assignee_email TEXT, assignee_name TEXT, summary TEXT NOT NULL, confidence REAL NOT NULL DEFAULT .9, rating REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS site_attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, owner_email TEXT NOT NULL, work_order_id INTEGER, object_key TEXT NOT NULL UNIQUE, original_name TEXT NOT NULL, content_type TEXT NOT NULL, media_type TEXT NOT NULL, size_bytes INTEGER NOT NULL, analysis TEXT, created_at TEXT NOT NULL)"),
     db.prepare("CREATE TABLE IF NOT EXISTS site_order_events (id INTEGER PRIMARY KEY AUTOINCREMENT, work_order_id INTEGER NOT NULL, actor_email TEXT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL, created_at TEXT NOT NULL)"),
+    db.prepare("CREATE TABLE IF NOT EXISTS site_worker_performance (worker_email TEXT PRIMARY KEY, credit_points INTEGER NOT NULL DEFAULT 1000, completed_orders INTEGER NOT NULL DEFAULT 0, on_time_rate REAL NOT NULL DEFAULT 98, satisfaction REAL NOT NULL DEFAULT 4.8, updated_at TEXT NOT NULL)"),
     db.prepare("CREATE INDEX IF NOT EXISTS site_orders_status_idx ON site_work_orders(status)"),
     db.prepare("CREATE INDEX IF NOT EXISTS site_orders_reporter_idx ON site_work_orders(reporter_email)"),
     db.prepare("CREATE INDEX IF NOT EXISTS site_attachments_order_idx ON site_attachments(work_order_id)"),
@@ -66,6 +67,7 @@ async function seed(db: D1Database, ownerEmail: string) {
   ];
   for (const worker of workers) {
     await db.prepare("INSERT OR IGNORE INTO site_users (email, display_name, role, skills, area, current_load, max_load, rating, created_at) VALUES (?, ?, 'worker', ?, ?, ?, ?, ?, ?)").bind(...worker, now()).run();
+    await db.prepare("INSERT OR IGNORE INTO site_worker_performance (worker_email,credit_points,completed_orders,on_time_rate,satisfaction,updated_at) VALUES (?,1000,0,98,4.8,?)").bind(worker[0],now()).run();
   }
   if (Number(existing?.total || 0) > 0) return;
   const examples = [
@@ -112,7 +114,10 @@ async function stateFor(user: User) {
     processing: orders.filter((item) => ["已接单", "处理中", "待回访"].includes(String(item.status))).length,
     completed: orders.filter((item) => item.status === "已完成").length,
   };
-  return { user, canSwitchRole: user.actual_role === "admin", orders, workers: workers.results, metrics };
+  const performance = user.role === "worker"
+    ? await db.prepare("SELECT credit_points,completed_orders,on_time_rate,satisfaction,updated_at FROM site_worker_performance WHERE worker_email=?").bind(user.email).first()
+    : null;
+  return { user, canSwitchRole: user.actual_role === "admin", orders, workers: workers.results, metrics, performance };
 }
 
 export async function GET(request: NextRequest) {
@@ -186,7 +191,10 @@ export async function POST(request: NextRequest) {
       db.prepare("UPDATE site_work_orders SET status=?,updated_at=? WHERE id=?").bind(target,now(),order.id),
       db.prepare("INSERT INTO site_order_events (work_order_id,actor_email,action,detail,created_at) VALUES (?,?,'status_changed',?,?)").bind(order.id,user.email,`${order.status} → ${target}`,now()),
     ];
-    if (target === "已完成" && order.assignee_email) statements.push(db.prepare("UPDATE site_users SET current_load=MAX(0,current_load-1) WHERE email=?").bind(order.assignee_email));
+    if (target === "已完成" && order.assignee_email) {
+      statements.push(db.prepare("UPDATE site_users SET current_load=MAX(0,current_load-1) WHERE email=?").bind(order.assignee_email));
+      statements.push(db.prepare("UPDATE site_worker_performance SET credit_points=credit_points+10,completed_orders=completed_orders+1,updated_at=? WHERE worker_email=?").bind(now(),order.assignee_email));
+    }
     await db.batch(statements);
   } else if (action === "rating") {
     const order = await db.prepare("SELECT * FROM site_work_orders WHERE id=?").bind(Number(body.id)).first<Record<string, unknown>>();

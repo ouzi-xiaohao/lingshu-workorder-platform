@@ -53,3 +53,12 @@ export const events = sqliteTable("site_order_events", {
   detail: text("detail").notNull(),
   createdAt: text("created_at").notNull(),
 });
+
+export const workerPerformance = sqliteTable("site_worker_performance", {
+  workerEmail: text("worker_email").primaryKey(),
+  creditPoints: integer("credit_points").notNull().default(1000),
+  completedOrders: integer("completed_orders").notNull().default(0),
+  onTimeRate: real("on_time_rate").notNull().default(98),
+  satisfaction: real("satisfaction").notNull().default(4.8),
+  updatedAt: text("updated_at").notNull(),
+});

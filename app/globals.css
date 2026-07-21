@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./role-pages.css";
 
 :root { --bg: #f3f5f7; --ink: #17211f; --muted: #6e7b77; --line: #dfe5e2; --panel: #ffffff; --deep: #12211e; --lime: #b9f55a; --cyan: #28c9bd; --violet: #765be8; --amber: #f0a847; }
 * { box-sizing: border-box; }
