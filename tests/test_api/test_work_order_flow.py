@@ -55,6 +55,11 @@ def test_create_and_dispatch_work_order():
         )
         assert rated.status_code == 200, rated.text
 
+        worker_token = _login(client, "worker", "worker123")
+        performance = client.get("/api/v1/worker/personal/performance", headers={"Authorization": f"Bearer {worker_token}"})
+        assert performance.status_code == 200, performance.text
+        assert performance.json()["data"]["current_load"] == 1
+
 
 def test_upload_media_and_create_multimodal_order():
     with TestClient(app) as client:

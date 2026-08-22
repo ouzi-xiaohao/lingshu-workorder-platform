@@ -22,7 +22,7 @@
 ├── db/、drizzle/              # 在线数据库模型与迁移
 ├── deploy/                    # Docker Compose、Dockerfile、Nginx、CI
 ├── docs/                      # 架构与压测说明
-├── scripts/                   # 初始化数据、压测、雪花 ID 测试
+├── scripts/                   # 初始化数据、压测
 ├── src/
 │   ├── api/v1/                # resident / worker / admin 三类接口域
 │   ├── service/               # 工单、调度、积分、用户、统计服务
@@ -30,11 +30,11 @@
 │   ├── models/                # SQLAlchemy 2.0 ORM
 │   ├── schemas/               # Pydantic 请求与响应模型
 │   ├── core/                  # 配置、安全、异常、错误码
-│   ├── common/                # ID、地理计算、日志、协调锁
+│   ├── common/                # 缓存、熔断、锁、日志、追踪
 │   ├── middleware/            # trace、访问日志、限流
-│   ├── extensions/            # PostgreSQL、Redis、RabbitMQ、MinIO
-│   ├── agent/                 # 五类 Agent、状态中心、调度器
-│   ├── ai_services/           # LLM、语音、图像、多模态融合适配
+│   ├── extensions/            # PostgreSQL、Redis、MinIO
+│   ├── agent/                 # AgentHub、Engine 与业务 Agent
+│   ├── ai_services/           # 语音、图像、大模型、多模态融合
 │   └── tasks/                 # Celery 异步与定时任务
 └── tests/                     # API、Service、Agent 测试
 ```

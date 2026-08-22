@@ -7,7 +7,6 @@ pydantic==2.11.7
 pydantic-settings==2.10.1
 python-multipart==0.0.20
 redis==6.2.0
-aio-pika==9.5.5
 minio==7.2.15
 celery==5.5.3
 httpx==0.28.1

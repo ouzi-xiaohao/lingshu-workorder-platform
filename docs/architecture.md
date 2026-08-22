@@ -13,10 +13,10 @@ src/agent（意图、调度、流转、积分、巡检）
        ↓
 src/dao → src/models → PostgreSQL / SQLite
        ↓
-src/extensions（Redis、RabbitMQ、MinIO）
+src/extensions（Redis、MinIO）
 ```
 
-API 层仅负责鉴权、参数和响应；Service 层承载用例与事务；DAO 隔离查询；Agent 通过全局状态中心共享结构化决策信息。默认开发环境使用 SQLite 与本地协调锁，生产环境通过环境变量切换 PostgreSQL、Redis、RabbitMQ 和 MinIO。
+API 层仅负责鉴权、参数和响应；Service 层承载用例与事务；DAO 隔离查询；Agent 由 `AgentEngine` 按配置流水线串行执行，结果写入共享 `AgentHub`。默认开发环境使用 SQLite 与本地协调锁，生产环境通过环境变量切换 PostgreSQL、Redis、RabbitMQ 和 MinIO。
 
 ## 核心链路
 
@@ -27,13 +27,13 @@ API 层仅负责鉴权、参数和响应；Service 层承载用例与事务；DA
 5. 调度 Agent 按技能 45%、负载 25%、距离 20%、评分 10% 计算候选人。
 6. 调度服务在工单锁内完成派单、负载更新和审计事件写入。
 7. 流转 Agent 校验状态机；完成后积分 Agent 自动结算。
-8. Celery 处理 AI、SLA、回访、巡检和日终任务。
+8. Celery 异步富化（语音/图像/大模型）与定时巡检、积压捞回。
 
 ## 降级策略
 
-- Redis 不可用：退化为单实例内存锁和 TTL 缓存。
-- AI 不可用：规则分类兜底，工单创建链路不中断。
-- RabbitMQ 不可用：接口仍可同步完成基础识别和落库。
+- Redis 不可用：退化为单实例内存锁和 L1 缓存。
+- 大模型不可用：主模型熔断后切备用模型，再不可用则规则摘要兜底；语音/视觉同样熔断降级。
+- RabbitMQ 不可用：同步接口不受影响（Celery 异步任务会暂停）。
 - MinIO 不可用：`MEDIA_STORAGE_MODE=auto` 自动退化为受控本地目录；生产环境可设置为 MinIO 强制模式。
 
 ## 在线运行架构

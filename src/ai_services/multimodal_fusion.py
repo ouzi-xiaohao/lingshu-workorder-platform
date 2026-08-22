@@ -1,6 +1,7 @@
 import json
 
 from src.ai_services.image_detect import ImageDetectionService
+from src.ai_services.llm_summary import LLMSummaryService
 from src.ai_services.stt_service import SpeechToTextService
 
 
@@ -8,8 +9,9 @@ class MultimodalFusionService:
     def __init__(self):
         self.stt = SpeechToTextService()
         self.detector = ImageDetectionService()
+        self.llm = LLMSummaryService()
 
-    async def fuse(self, title: str, description: str, attachments: list[object]) -> dict[str, object]:
+    async def fuse(self, title: str, description: str, attachments: list[object], *, heavy: bool = True) -> dict[str, object]:
         evidence = [title, description]
         media_types: list[str] = []
         for attachment in attachments:
@@ -17,12 +19,18 @@ class MultimodalFusionService:
             object_key = str(getattr(attachment, "object_key", ""))
             media_types.append(media_type)
             if media_type == "audio":
-                transcript = await self.stt.transcribe(object_key)
+                transcript = await self.stt.transcribe(object_key) if heavy else f"音频附件待识别：{object_key.rsplit('/', 1)[-1]}"
                 setattr(attachment, "transcript", transcript)
                 evidence.append(transcript)
             elif media_type in {"image", "video"}:
-                features = await self.detector.detect(object_key)
+                features = await self.detector.detect(object_key) if heavy else self.detector._filename_labels(object_key)
                 setattr(attachment, "detected_features", json.dumps(features, ensure_ascii=False))
                 evidence.extend(features)
-        normalized = "；".join(part.strip() for part in evidence if part and part.strip())
-        return {"normalized_text": normalized, "media_types": sorted(set(media_types)), "evidence_count": len(evidence)}
+        raw = "；".join(part.strip() for part in evidence if part and str(part).strip())
+        summary = await self.llm.summarize(raw, evidence) if heavy else raw[:180]
+        return {
+            "normalized_text": summary or raw,
+            "media_types": sorted(set(media_types)),
+            "evidence_count": len(evidence),
+            "summary_source": "llm" if heavy else "text",
+        }

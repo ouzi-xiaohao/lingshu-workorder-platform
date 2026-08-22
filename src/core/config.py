@@ -36,10 +36,26 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     rate_limit_per_minute: int = 120
     ai_mode: str = "fallback"
+    ai_async_enabled: bool = True
     whisper_model: str = "base"
     yolo_model: str = "yolov8n.pt"
-    llm_api_url: str | None = None
-    llm_api_key: str | None = None
+    llm_api_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = "qwen"
+    llm_fallback_api_url: str = ""
+    llm_fallback_api_key: str = ""
+    llm_fallback_model: str = ""
+    circuit_failure_threshold: int = 5
+    circuit_recovery_seconds: float = 30
+    circuit_half_open_max_calls: int = 1
+    cache_l1_ttl_seconds: int = 5
+    cache_l2_ttl_seconds: int = 30
+    cache_ttl_jitter_ratio: float = 0.2
+    cache_max_l1_items: int = 2048
+    agent_pipeline: str = "intent-agent,dispatch-agent,order-flow-agent,credit-agent,patrol-agent"
+    ai_enrich_rate_limit: str = "20/m"
+    db_pool_size: int = 10
+    db_max_overflow: int = 20
 
 
 @lru_cache

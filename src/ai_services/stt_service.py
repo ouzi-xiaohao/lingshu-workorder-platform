@@ -2,21 +2,28 @@ import asyncio
 import tempfile
 from pathlib import Path
 
+from src.common.circuit_breaker import circuits
 from src.core.config import settings
 from src.extensions.minio_client import object_storage
 
 
 class SpeechToTextService:
     async def transcribe(self, object_key: str) -> str:
+        fallback_text = f"音频附件已接收：{Path(object_key).name}"
         if settings.ai_mode not in {"local", "production"}:
-            return f"音频附件已接收：{Path(object_key).name}"
-        return await asyncio.to_thread(self._transcribe_sync, object_key)
+            return fallback_text
+
+        async def primary():
+            return await asyncio.to_thread(self._transcribe_sync, object_key)
+
+        async def fallback():
+            return fallback_text
+
+        return await circuits.get("ai-stt").execute(primary, fallback)
 
     def _transcribe_sync(self, object_key: str) -> str:
-        try:
-            from faster_whisper import WhisperModel
-        except ImportError:
-            return f"音频附件已接收（安装 requirements-ai.txt 后启用自动转写）：{Path(object_key).name}"
+        from faster_whisper import WhisperModel
+
         local = object_storage.local_path(object_key)
         temporary: str | None = None
         try:
@@ -30,8 +37,6 @@ class SpeechToTextService:
             segments, _ = model.transcribe(str(local), language="zh", vad_filter=True)
             text = "".join(segment.text for segment in segments).strip()
             return text or "音频中未识别到清晰语音"
-        except Exception as exc:
-            return f"音频转写失败：{type(exc).__name__}"
         finally:
             if temporary:
                 Path(temporary).unlink(missing_ok=True)

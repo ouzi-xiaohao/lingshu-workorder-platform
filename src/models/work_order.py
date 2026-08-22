@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base, TimestampMixin
@@ -23,8 +23,8 @@ class WorkOrder(TimestampMixin, Base):
     reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     assignee_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
-    sla_deadline: Mapped[datetime | None] = mapped_column(nullable=True)
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    sla_deadline: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
     trace_id: Mapped[str] = mapped_column(String(64), index=True)
 

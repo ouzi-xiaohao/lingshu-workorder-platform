@@ -4,6 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import db_session, require_roles
+from src.common.cache import CONFIGS_KEY, cache
+from src.common.circuit_breaker import circuits
 from src.models.system import SystemConfig
 from src.models.user import User
 
@@ -18,8 +20,10 @@ class ConfigUpdate(BaseModel):
 
 @router.get("/configs")
 async def configs(_: User = Depends(require_roles("admin")), session: AsyncSession = Depends(db_session)):
-    items = list((await session.scalars(select(SystemConfig).where(SystemConfig.is_deleted.is_(False)))).all())
-    return {"code": "OK", "data": [{"key": item.key, "value": item.value, "description": item.description, "value_type": item.value_type} for item in items]}
+    async def load():
+        items = list((await session.scalars(select(SystemConfig).where(SystemConfig.is_deleted.is_(False)))).all())
+        return [{"key": item.key, "value": item.value, "description": item.description, "value_type": item.value_type} for item in items]
+    return {"code": "OK", "data": await cache.get_or_set(CONFIGS_KEY, load)}
 
 
 @router.put("/configs/{key}")
@@ -32,4 +36,10 @@ async def update_config(key: str, payload: ConfigUpdate, _: User = Depends(requi
         item = SystemConfig(key=key, value=payload.value, description=payload.description)
         session.add(item)
     await session.commit()
+    await cache.delete(CONFIGS_KEY)
     return {"code": "OK", "data": {"key": item.key, "value": item.value}}
+
+
+@router.get("/circuits")
+async def circuit_status(_: User = Depends(require_roles("admin"))):
+    return {"code": "OK", "data": circuits.snapshot()}

@@ -21,6 +21,7 @@ class EventView(BaseModel):
     from_status: str | None
     to_status: str | None
     detail: str
+    trace_id: str
     created_at: datetime
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -24,6 +25,14 @@ def verify_password(password: str, encoded: str) -> bool:
         return False
     actual = hash_password(password, salt).split("$", 2)[2]
     return hmac.compare_digest(actual, expected)
+
+
+async def hash_password_async(password: str, salt: str | None = None) -> str:
+    return await asyncio.to_thread(hash_password, password, salt)
+
+
+async def verify_password_async(password: str, encoded: str) -> bool:
+    return await asyncio.to_thread(verify_password, password, encoded)
 
 
 def _b64(data: bytes) -> str:

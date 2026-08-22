@@ -2,28 +2,34 @@ import asyncio
 import tempfile
 from pathlib import Path
 
+from src.common.circuit_breaker import circuits
 from src.core.config import settings
 from src.extensions.minio_client import object_storage
 
 
 class ImageDetectionService:
     async def detect(self, object_key: str) -> list[str]:
-        if settings.ai_mode in {"local", "production"}:
-            detected = await asyncio.to_thread(self._detect_sync, object_key)
-            if detected:
-                return detected
+        filename_labels = self._filename_labels(object_key)
+
+        async def fallback():
+            return filename_labels or ["scene_unclassified"]
+
+        if settings.ai_mode not in {"local", "production"}:
+            return await fallback()
+
+        async def primary():
+            return await asyncio.to_thread(self._detect_sync, object_key)
+
+        detected = await circuits.get("ai-vision").execute(primary, fallback)
+        return detected or filename_labels or ["scene_unclassified"]
+
+    def _filename_labels(self, object_key: str) -> list[str]:
         filename = object_key.lower()
-        labels = []
-        for keyword in ("smoke", "water", "light", "pump", "aircon"):
-            if keyword in filename:
-                labels.append(keyword)
-        return labels or ["scene_unclassified"]
+        return [keyword for keyword in ("smoke", "water", "light", "pump", "aircon") if keyword in filename]
 
     def _detect_sync(self, object_key: str) -> list[str]:
-        try:
-            from ultralytics import YOLO
-        except ImportError:
-            return []
+        from ultralytics import YOLO
+
         local = object_storage.local_path(object_key)
         temporary: str | None = None
         try:
@@ -40,8 +46,6 @@ class ImageDetectionService:
                 for class_id in result.boxes.cls.tolist()
             }
             return sorted(labels)
-        except Exception:
-            return []
         finally:
             if temporary:
                 Path(temporary).unlink(missing_ok=True)

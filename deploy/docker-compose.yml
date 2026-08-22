@@ -9,6 +9,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://lingshu:lingshu@rabbitmq:5672/
       MINIO_ENDPOINT: minio:9000
+      AI_ASYNC_ENABLED: "true"
     ports: ["8000:8000"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -18,13 +19,15 @@ services:
 
   celery-worker:
     build: { context: .., dockerfile: deploy/Dockerfile }
-    command: celery -A src.tasks.celery_app.celery_app worker -l INFO -Q ai,workorder,celery
+    command: celery -A src.tasks.celery_app.celery_app worker -l INFO --prefetch-multiplier=1
     env_file: ../.env
     environment:
       DATABASE_URL: postgresql+asyncpg://lingshu:lingshu@postgres:5432/lingshu
       REDIS_URL: redis://redis:6379/0
       RABBITMQ_URL: amqp://lingshu:lingshu@rabbitmq:5672/
-    depends_on: [postgres, redis, rabbitmq]
+      MINIO_ENDPOINT: minio:9000
+      AI_ASYNC_ENABLED: "true"
+    depends_on: [postgres, redis, rabbitmq, minio]
 
   celery-beat:
     build: { context: .., dockerfile: deploy/Dockerfile }

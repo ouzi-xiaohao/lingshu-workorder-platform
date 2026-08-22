@@ -1,9 +1,13 @@
+import asyncio
+
+from src.agent.patrol_agent import PatrolAgent
 from src.tasks.celery_app import celery_app
 
 
 @celery_app.task
 def patrol_system() -> dict[str, object]:
-    return {"status": "patrol-completed", "alerts": []}
+    result = asyncio.run(PatrolAgent().run({}))
+    return {"status": "patrol-completed", "alerts": result.output.get("alerts", [])}
 
 
 @celery_app.task

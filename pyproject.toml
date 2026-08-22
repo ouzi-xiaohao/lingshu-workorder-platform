@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-infrastructure = ["asyncpg==0.30.0", "redis==6.2.0", "aio-pika==9.5.5", "minio==7.2.15", "celery==5.5.3"]
+infrastructure = ["asyncpg==0.30.0", "redis==6.2.0", "minio==7.2.15", "celery==5.5.3"]
 test = ["httpx==0.28.1", "pytest==8.4.1", "pytest-asyncio==1.0.0"]
 
 [tool.pytest.ini_options]

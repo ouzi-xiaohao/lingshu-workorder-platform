@@ -1,9 +1,10 @@
 from collections.abc import Callable
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.common.tracing import bind_log_context
 from src.core.security import decode_access_token
 from src.dao.user_dao import UserDAO
 from src.extensions.postgres import get_session
@@ -26,6 +27,7 @@ async def current_user(credentials: HTTPAuthorizationCredentials | None = Depend
     user = await UserDAO(session).get(int(payload["sub"]))
     if not user or not user.is_active:
         raise HTTPException(401, "用户不存在或已停用")
+    bind_log_context(user_id=user.id, username=user.username, role=user.role)
     return user
 
 
@@ -35,7 +37,3 @@ def require_roles(*roles: str) -> Callable:
             raise HTTPException(403, "无权执行此操作")
         return user
     return dependency
-
-
-def get_trace_id(request: Request) -> str:
-    return request.state.trace_id
