@@ -80,6 +80,6 @@ def test_work_order_lifecycle_can_be_found_by_any_trace(caplog):
     messages = [record.getMessage() for record in caplog.records]
     assert "http.request" in messages
     assert "work_order.create.start" in messages
-    assert "agent.intent-agent.start" in messages
+    assert "agent.work-order-agent.start" in messages
     assert "work_order.dispatch.start" in messages
     assert any(getattr(record, "root_trace_id", None) == "create-trace" for record in caplog.records)

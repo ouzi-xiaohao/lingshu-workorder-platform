@@ -25,9 +25,7 @@ def build_intent_audit_payload(state: dict[str, Any]) -> dict[str, Any]:
         "evidence_count": state.get("evidence_count"),
         "media_types": state.get("media_types"),
         "steps": state.get("steps"),
-        "coordinator_tool": state.get("coordinator_tool"),
-        "coordinator_source": state.get("coordinator_source"),
-        "coordinator_rationale": state.get("coordinator_rationale"),
+        "phase": state.get("phase"),
     }
 
 
@@ -109,7 +107,7 @@ def dispatch_decision_event(
 ) -> WorkOrderEvent:
     return WorkOrderEvent(
         work_order_id=work_order_id,
-        actor_type="dispatch-agent",
+        actor_type="work-order-agent",
         action="ai_dispatch_decision",
         from_status=from_status,
         to_status="已派单",

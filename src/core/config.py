@@ -52,11 +52,9 @@ class Settings(BaseSettings):
     cache_l2_ttl_seconds: int = 30
     cache_ttl_jitter_ratio: float = 0.2
     cache_max_l1_items: int = 2048
-    agent_pipeline: str = "coordinator-agent,intent-agent,dispatch-agent"
+    agent_pipeline: str = "work-order-agent"
     intent_human_review_threshold: float = 0.85
-    coordinator_llm_enabled: bool = True
     llm_intent_timeout_seconds: float = 8.0
-    llm_coordinator_timeout_seconds: float = 5.0
     patrol_backlog_threshold: int = 20
     patrol_utilization_threshold: float = 0.85
     patrol_hotspot_threshold: int = 10

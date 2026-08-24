@@ -13,11 +13,9 @@
 - 工单创建、查询、取消、派单、接单、处理、回访、完成与评价
 - 附件存储支持 R2、MinIO、本地目录（`MEDIA_STORAGE_MODE=auto` 自动选择）
 
-### 多智能体决策
+### 智能工单决策
 
-- **Coordinator Agent**：LLM 规划下一步工具（`intent` / `dispatch`），不可用时按 `phase` 规则路由
-- **Intent Agent**：分类、优先级、置信度；LLM 主路径 + 规则兜底 + 视觉 evidence 覆盖
-- **Dispatch Agent**：技能 / 负载 / 距离 / 评分加权打分，选出 Top-K 处理人
+- **Work-Order Agent**：按业务 `phase` 完成意图识别（建单/富化）或智能派单（dispatch）；LLM 主路径 + 规则降级
 - **仲裁策略**：字段所有权、安全隐患优先、低置信度人审标记
 - **审计事件**：`ai_decision`、`ai_conflict`、`ai_dispatch_decision`、`needs_human_review`、`human_review_resolved`
 
@@ -63,9 +61,7 @@ flowchart TB
 
   subgraph agent [决策层 src/agent]
     CE[AgentEngine]
-    CO[coordinator-agent]
-    IN[intent-agent]
-    DI[dispatch-agent]
+    WOA[work-order-agent]
     AR[ArbitrationPolicy]
     AU[audit]
   end
@@ -88,8 +84,7 @@ flowchart TB
   Sites --> DB
   FastAPI --> service
   service --> CE
-  CE --> CO --> IN
-  CO --> DI
+  CE --> WOA
   CE --> AR
   CE --> AU
   service --> tools
@@ -106,9 +101,7 @@ flowchart TB
 
 | 组件 | 类型 | 职责 |
 |------|------|------|
-| `coordinator-agent` | 决策 Agent | LLM 选择 `intent` 或 `dispatch` 工具，编排专家 Agent 执行 |
-| `intent-agent` | 决策 Agent | 工单分类、优先级、置信度、摘要 |
-| `dispatch-agent` | 决策 Agent | 调用打分工具，输出推荐处理人与决策因子 |
+| `work-order-agent` | 决策 Agent | 按 `phase` 完成意图识别（建单/富化）或加权派单 |
 | `order_flow` | 确定性工具 | 工单状态机校验与流转 |
 | `dispatch_scoring` | 确定性工具 | 加权打分：技能 45% / 负载 25% / 距离 20% / 评分 10% |
 | `credit` | 确定性工具 | 评价结算与绩效积分 |
@@ -119,8 +112,7 @@ flowchart TB
 流水线由 `AGENT_PIPELINE` 配置，默认：
 
 ```env
-AGENT_PIPELINE=coordinator-agent,intent-agent,dispatch-agent
-COORDINATOR_LLM_ENABLED=true
+AGENT_PIPELINE=work-order-agent
 INTENT_HUMAN_REVIEW_THRESHOLD=0.85
 ```
 

@@ -3,20 +3,18 @@ from __future__ import annotations
 from typing import Any
 
 from src.agent.base_agent import AgentResult, BaseAgent
-from src.agent.coordinator_agent import CoordinatorAgent
-from src.agent.dispatch_agent import DispatchAgent
-from src.agent.intent_agent import IntentAgent
 from src.agent.policies.arbitration import ArbitrationPolicy, DISPATCH_OWNED_KEYS, INTENT_OWNED_KEYS
+from src.agent.work_order_agent import WorkOrderAgent
 from src.common.tracing import traced
 
 
 def decision_agents() -> dict[str, BaseAgent]:
-    agents = [CoordinatorAgent(), IntentAgent(), DispatchAgent()]
+    agents = [WorkOrderAgent()]
     return {agent.name: agent for agent in agents}
 
 
 class AgentHub:
-    """Shared-state pipeline for decision agents with deterministic arbitration."""
+    """Shared-state pipeline for the work-order decision agent with deterministic arbitration."""
 
     def __init__(self, agents: list[BaseAgent] | None = None):
         self._registry: dict[str, BaseAgent] = {}
@@ -65,8 +63,11 @@ class AgentHub:
         top_candidates = set(result.output.get("top_candidates") or [])
 
         for key, value in result.output.items():
-            if key in {"steps", "top_candidates"}:
-                state[key] = value
+            if key in {"steps", "top_candidates", "phase"}:
+                if key == "steps":
+                    state[key] = value
+                elif key == "top_candidates":
+                    state[key] = value
                 continue
 
             if key in DISPATCH_OWNED_KEYS:

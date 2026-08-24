@@ -81,7 +81,7 @@ class WorkOrderService:
                 "longitude": payload.longitude,
                 "latitude": payload.latitude,
                 "phase": "create",
-            }, names=["coordinator-agent"])
+            }, names=["work-order-agent"])
             if not results[-1].success:
                 raise BusinessError(results[-1].message, ErrorCode.INVALID_TRANSITION)
             target_status = self._target_status(state)
@@ -125,7 +125,7 @@ class WorkOrderService:
                 "priority": order.priority,
                 "confidence": order.confidence,
                 "phase": "enrich",
-            }, names=["coordinator-agent"])
+            }, names=["work-order-agent"])
             if not results[-1].success:
                 return {"status": "failed", "order_id": order.id, "message": results[-1].message}
             order.normalized_summary = str(state.get("normalized_text") or order.normalized_summary)

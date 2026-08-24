@@ -1,7 +1,5 @@
 from src.agent.engine import AgentEngine
 from src.agent.hub import AgentHub
-from src.agent.coordinator_agent import CoordinatorAgent
-from src.agent.intent_agent import IntentAgent
-from src.agent.dispatch_agent import DispatchAgent
+from src.agent.work_order_agent import WorkOrderAgent
 
-__all__ = ["AgentEngine", "AgentHub", "CoordinatorAgent", "IntentAgent", "DispatchAgent"]
+__all__ = ["AgentEngine", "AgentHub", "WorkOrderAgent"]

@@ -2,7 +2,7 @@
 
 ## 概述
 
-灵枢采用分层架构：接口层负责鉴权与参数校验，Service 层承载业务用例与事务边界，Agent 层通过共享状态黑板（`AgentHub`）执行多智能体决策，DAO 层隔离数据库访问。决策结果经 `audit` 模块写入工单事件表，形成完整可追溯的处理轨迹。
+灵枢采用分层架构：接口层负责鉴权与参数校验，Service 层承载业务用例与事务边界，Agent 层通过共享状态黑板（`AgentHub`）执行工单决策，DAO 层隔离数据库访问。决策结果经 `audit` 模块写入工单事件表，形成完整可追溯的处理轨迹。
 
 系统提供两套运行时：
 
@@ -55,80 +55,42 @@
 
 ## 决策流水线
 
-`AgentEngine.shared()` 按 `AGENT_PIPELINE` 环境变量注册 Agent，默认依次执行 `coordinator-agent` → `intent-agent` → `dispatch-agent`。
+`AgentEngine.shared()` 注册 `work-order-agent`。Service 按业务阶段传入 `phase`，Agent 内部执行对应逻辑：
+
+| phase | 行为 |
+|-------|------|
+| `create` / `enrich` | LLM + 规则意图识别：分类、优先级、置信度 |
+| `dispatch` | 加权打分选人：技能 45% / 负载 25% / 距离 20% / 评分 10% |
 
 ```mermaid
 sequenceDiagram
   participant S as Service
   participant E as AgentEngine
-  participant C as coordinator-agent
-  participant I as intent-agent
-  participant D as dispatch-agent
+  participant W as work-order-agent
   participant A as ArbitrationPolicy
   participant U as audit
 
-  S->>E: run(trace_id, state)
-  E->>C: LLM plan_coordinator(state)
-  alt tool = intent
-    C->>I: classify + evidence
-    I-->>C: category, priority, confidence
-  else tool = dispatch
-    C->>D: rank_worker_candidates
-    D-->>C: worker_id, score, factors
+  S->>E: run(trace_id, state with phase)
+  E->>W: run(state)
+  alt phase = create / enrich
+    W-->>E: category, priority, confidence
+  else phase = dispatch
+    W-->>E: worker_id, score, factors
   end
   E->>A: merge + arbitrate conflicts
   E->>U: events_from_agent_state
   U-->>S: audit events → 工单事件表
 ```
 
-### phase 与工具选择
+实现：`src/agent/work_order_agent.py`
 
-| phase | Coordinator 默认工具 | 说明 |
-|-------|---------------------|------|
-| `create` / `enrich` | `intent` | 建单或富化时识别分类与优先级 |
-| `dispatch` | `dispatch` | 派单阶段选人 |
+### 意图识别（create / enrich）
 
-LLM 规划通过 `llm_client.plan_coordinator()` 返回 `{ tool, rationale, coordinator_source }`。`COORDINATOR_LLM_ENABLED=false` 或 LLM 不可用时，按上表 phase 规则硬路由，`coordinator_source=rules`。
+输入包含 `normalized_text`、`evidence`（多模态融合产出）、`area` 等。主路径为 OpenAI 兼容 Chat API（`llm_client.classify_intent`），失败时降级到 `intent_rules` 关键词与视觉 evidence 规则。
 
-## 三个决策 Agent
+### 智能派单（dispatch）
 
-### coordinator-agent
-
-编排者，不直接拥有业务字段。职责：
-
-1. 调用 LLM 或 phase 规则，决定下一步执行 `intent-agent` 还是 `dispatch-agent`
-2. 将专家 Agent 的输出合并回共享 state
-3. 在 output 中记录 `coordinator_tool`、`coordinator_rationale`、`coordinator_source`
-
-实现：`src/agent/coordinator_agent.py`
-
-### intent-agent
-
-意图识别专家。输入包含 `normalized_text`、`evidence`（多模态融合产出）、`area` 等。输出：
-
-- `category`：暖通空调、设备故障、安全隐患等
-- `priority`：紧急 / 高 / 中 / 低
-- `confidence`：0–1 置信度
-- `summary`：工单摘要
-
-主路径为 OpenAI 兼容 Chat API（`llm_client.classify_intent`），失败时降级到 `intent_rules` 关键词与视觉 evidence 规则。
-
-实现：`src/agent/intent_agent.py`、`src/agent/intent_rules.py`
-
-### dispatch-agent
-
-调度专家。调用 `rank_worker_candidates` 工具，对候选人加权打分：
-
-| 因子 | 权重 |
-|------|------|
-| 技能匹配 | 45% |
-| 负载余量 | 25% |
-| 地理距离 | 20% |
-| 历史评分 | 10% |
-
-输出 `worker_id`、`worker_name`、`dispatch_score`、`distance_km`、`decision_factors`。满载工人自动跳过。
-
-实现：`src/agent/dispatch_agent.py`、`src/agent/tools/dispatch_scoring.py`
+调用 `rank_worker_candidates` 工具对候选人加权打分，输出 `worker_id`、`dispatch_score`、`decision_factors`。满载工人自动跳过。
 
 ## 确定性工具层
 
@@ -146,7 +108,7 @@ LLM 规划通过 `llm_client.plan_coordinator()` 返回 `{ tool, rationale, coor
 
 `ArbitrationPolicy`（`src/agent/policies/arbitration.py`）在 `AgentHub._merge` 阶段介入，处理多 Agent 写入同一字段时的冲突：
 
-- **字段所有权**：`category`、`priority`、`tags`、`confidence` 归 Intent；`worker_id`、`dispatch_score` 等归 Dispatch
+- **字段所有权**：`category`、`priority`、`tags`、`confidence` 归意图阶段；`worker_id`、`dispatch_score` 等归派单阶段
 - **安全覆盖**：`安全隐患` 类别优先于其他分类
 - **置信度比较**：同类冲突时保留高置信度写入方
 - **人审标记**：无法自动裁决时写入 `_human_review`，触发 `needs_human_review` 审计事件
@@ -159,7 +121,7 @@ LLM 规划通过 `llm_client.plan_coordinator()` 返回 `{ tool, rationale, coor
 
 | action | 触发条件 |
 |--------|----------|
-| `ai_decision` | Intent 或 Dispatch 产出有效决策 |
+| `ai_decision` | 意图识别产出有效决策 |
 | `ai_conflict` | 仲裁策略解决字段冲突 |
 | `ai_dispatch_decision` | 派单完成，含打分因子 |
 | `needs_human_review` | 置信度低于阈值或仲裁标记人审 |
@@ -199,7 +161,7 @@ LLM 规划通过 `llm_client.plan_coordinator()` 返回 `{ tool, rationale, coor
 | `multimodal_fusion` | 汇总附件分析结果，产出 `normalized_text` 与 `evidence` |
 | `speech_service` | 语音转写（Whisper，`AI_MODE=local`） |
 | `vision_service` | 图像/视频目标检测（YOLO） |
-| `llm_client` | OpenAI 兼容 Chat API：意图分类、Coordinator 规划 |
+| `llm_client` | OpenAI 兼容 Chat API：意图分类 |
 
 `AI_MODE=fallback` 时使用规则拼接摘要与关键词分类；`AI_MODE=local` 或 `production` 时启用真实模型，配合熔断器（`src/common/circuit_breaker.py`）与备用模型路由。
 
@@ -225,7 +187,7 @@ LLM 规划通过 `llm_client.plan_coordinator()` 返回 `{ tool, rationale, coor
 |------|------|
 | 统计概览 / 绩效 | L1 进程内存 + L2 Redis，TTL 可配置 |
 | Redis 不可用 | 退化为单实例内存锁与 L1 缓存 |
-| LLM 不可用 | Intent 走规则；Coordinator 走 phase 硬路由 |
+| LLM 不可用 | 意图走规则；派单仍走确定性打分 |
 | RabbitMQ 不可用 | 同步 API 正常，Celery 任务暂停 |
 | MinIO 不可用 | `MEDIA_STORAGE_MODE=auto` 退化为 `LOCAL_MEDIA_DIR` |
 

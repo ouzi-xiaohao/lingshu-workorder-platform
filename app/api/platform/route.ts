@@ -157,7 +157,7 @@ async function stateFor(user: User) {
     patrol_alerts: patrolAlerts,
     backlog_count: backlog,
     worker_utilization: Math.round(utilization * 1000) / 1000,
-    agent_checks: { coordinator: "llm+rules", intent: "llm+rules", dispatch: "scoring-tool" },
+    agent_checks: { work_order: "llm+rules / scoring" },
     persisted: persistedHealth,
   };
   return { user, canSwitchRole: user.actual_role === "admin", orders, workers: workers.results, metrics, performance, opsHealth };

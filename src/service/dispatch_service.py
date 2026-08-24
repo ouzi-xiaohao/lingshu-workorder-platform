@@ -49,7 +49,7 @@ class DispatchService:
                     "longitude": order.longitude,
                     "latitude": order.latitude,
                     "worker_candidates": candidates,
-                }, names=["coordinator-agent"])
+                }, names=["work-order-agent"])
                 if not results[-1].success:
                     raise BusinessError(results[-1].message, ErrorCode.NO_WORKER_AVAILABLE)
                 worker_id = int(state["worker_id"])
@@ -62,7 +62,7 @@ class DispatchService:
                 from_status = "待派单" if not previous_assignee_id else "已派单"
                 await self.orders.add_event(dispatch_decision_event(order.id, trace_id, state, from_status=from_status))
                 await self.orders.add_event(WorkOrderEvent(
-                    work_order_id=order.id, actor_type="dispatch-agent", action="dispatched",
+                    work_order_id=order.id, actor_type="work-order-agent", action="dispatched",
                     from_status=from_status, to_status="已派单",
                     detail=f"派单给 {state['worker_name']}，评分 {state['dispatch_score']}，距离 {state['distance_km']}km",
                     trace_id=trace_id,

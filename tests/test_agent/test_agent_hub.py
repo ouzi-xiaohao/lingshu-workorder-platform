@@ -2,23 +2,23 @@ import pytest
 
 from src.agent.engine import AgentEngine
 from src.agent.hub import AgentHub, decision_agents
-from src.agent.intent_agent import IntentAgent
 from src.agent.policies.arbitration import ArbitrationPolicy
+from src.agent.work_order_agent import WorkOrderAgent
 
 
 @pytest.mark.asyncio
-async def test_hub_registers_decision_agents():
+async def test_hub_registers_work_order_agent():
     hub = AgentHub()
     for agent in decision_agents().values():
         hub.register(agent)
-    assert {"coordinator-agent", "intent-agent", "dispatch-agent"} <= set(hub.names)
-    hub.unregister("dispatch-agent")
-    assert "dispatch-agent" not in hub.names
+    assert hub.names == ["work-order-agent"]
+    hub.unregister("work-order-agent")
+    assert hub.names == []
 
 
 @pytest.mark.asyncio
 async def test_hub_keeps_higher_confidence_category():
-    hub = AgentHub([IntentAgent()])
+    hub = AgentHub([WorkOrderAgent()])
     kept, _ = await hub.execute("t-keep", {
         "normalized_text": "空调不制冷",
         "area": "西区",
@@ -40,17 +40,17 @@ async def test_hub_keeps_higher_confidence_category():
 
 
 @pytest.mark.asyncio
-async def test_engine_runs_coordinator_for_intent():
+async def test_engine_runs_work_order_agent_for_intent():
     engine = AgentEngine.with_builtins()
-    assert "coordinator-agent" in engine.state_center.names
+    assert "work-order-agent" in engine.state_center.names
     state, results = await engine.run(
         "t-engine",
         {"normalized_text": "空调不制冷", "area": "西区", "phase": "create"},
-        names=["coordinator-agent"],
+        names=["work-order-agent"],
     )
     assert results[0].success
     assert state["category"] == "暖通空调"
-    assert "intent-agent" in state.get("steps", [])
+    assert state.get("steps") == ["intent"]
 
 
 def test_arbitration_safety_override():
@@ -60,8 +60,8 @@ def test_arbitration_safety_override():
         incoming="安全隐患",
         held_confidence=0.95,
         incoming_confidence=0.7,
-        held_writer="intent-agent",
-        incoming_writer="intent-agent",
+        held_writer="work-order-agent",
+        incoming_writer="work-order-agent",
     )
     assert verdict.value == "安全隐患"
     assert verdict.reason == "safety_override"
