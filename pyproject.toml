@@ -1,0 +1,24 @@
+[project]
+name = "smart-workorder-platform"
+version = "1.1.0"
+description = "多模态智能工单协同调度平台"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn[standard]==0.35.0",
+  "sqlalchemy==2.0.41",
+  "aiosqlite==0.21.0",
+  "pydantic-settings==2.10.1",
+]
+
+[project.optional-dependencies]
+infrastructure = ["asyncpg==0.30.0", "redis==6.2.0", "minio==7.2.15", "celery==5.5.3"]
+test = ["httpx==0.28.1", "pytest==8.4.1", "pytest-asyncio==1.0.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
