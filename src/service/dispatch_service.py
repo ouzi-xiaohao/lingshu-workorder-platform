@@ -33,15 +33,19 @@ class DispatchService:
                 if not flow.success:
                     raise BusinessError(flow.message, ErrorCode.INVALID_TRANSITION)
             async with traced("work_order.dispatch", specified_worker_id=specified_worker_id):
-                profiles = await self.workers.list_available(order.area)
+                # Fetch the available pool once. The agent first tries local workers and
+                # may deliberately expand to cross-area workers when its plan requires it.
+                profiles = await self.workers.list_available()
                 candidates = [{
                     "user_id": profile.user_id, "display_name": profile.user.display_name,
                     "skills": profile.skills, "longitude": profile.longitude, "latitude": profile.latitude,
                     "current_load": profile.current_load, "max_load": profile.max_load, "rating": profile.rating,
+                    "area": profile.user.area,
                 } for profile in profiles if not specified_worker_id or profile.user_id == specified_worker_id]
                 previous_assignee_id = order.assignee_id
                 state, results = await AgentEngine.with_builtins().run(trace_id, {
-                    "category": order.category, "longitude": order.longitude, "latitude": order.latitude,
+                    "category": order.category, "priority": order.priority, "area": order.area,
+                    "longitude": order.longitude, "latitude": order.latitude,
                     "worker_candidates": candidates,
                 }, names=["dispatch-agent"])
                 if not results[-1].success:
@@ -53,7 +57,19 @@ class DispatchService:
                     await self.workers.adjust_load(worker_id, 1)
                 order.assignee_id = worker_id
                 order.status = "已派单"
-                await self.orders.add_event(WorkOrderEvent(work_order_id=order.id, actor_type="dispatch-agent", action="dispatched", from_status="待派单" if not previous_assignee_id else "已派单", to_status="已派单", detail=f"派单给 {state['worker_name']}，评分 {state['dispatch_score']}，距离 {state['distance_km']}km", trace_id=trace_id))
+                await self.orders.add_event(WorkOrderEvent(
+                    work_order_id=order.id,
+                    actor_type="dispatch-agent",
+                    action="dispatched",
+                    from_status="待派单" if not previous_assignee_id else "已派单",
+                    to_status="已派单",
+                    detail=(
+                        f"派单给 {state['worker_name']}，策略 {state['strategy']}，"
+                        f"评分 {state['dispatch_score']}，距离 {state['distance_km']}km，"
+                        f"置信度 {state['confidence']}"
+                    ),
+                    trace_id=trace_id,
+                ))
                 await self.session.commit()
                 await invalidate_worker(worker_id)
                 if previous_assignee_id:
